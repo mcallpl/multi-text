@@ -1,0 +1,37 @@
+CREATE DATABASE IF NOT EXISTS multi_text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE multi_text;
+
+CREATE TABLE IF NOT EXISTS contacts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    carrier VARCHAR(20) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS groups_ (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS group_members (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    group_id INT NOT NULL,
+    contact_id INT NOT NULL,
+    FOREIGN KEY (group_id) REFERENCES groups_(id) ON DELETE CASCADE,
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_member (group_id, contact_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS message_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    contact_id INT DEFAULT NULL,
+    contact_name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    carrier VARCHAR(20) NOT NULL,
+    message TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'sent',
+    sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
+) ENGINE=InnoDB;

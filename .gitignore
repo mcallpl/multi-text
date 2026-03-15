@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# Deploy scripts (contain SFTP credentials)
+deploy*.sh
+
+# Claude Code
+.claude/
+
+# Environment
+.env
