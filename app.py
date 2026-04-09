@@ -405,12 +405,21 @@ def history_export():
 
 # ── API helpers ──────────────────────────────────────────────────
 
-@app.route("/api/contacts/search")
+@app.route("/api/contacts/search", methods=["GET", "OPTIONS"])
 def contacts_search():
     """Search contacts by name for the contact picker."""
+    if request.method == "OPTIONS":
+        resp = Response("", status=204)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        return resp
+
     q = request.args.get("q", "").strip()
     if len(q) < 2:
-        return jsonify([])
+        resp = jsonify([])
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp
     rows = query(
         """SELECT id, first_name, last_name, phone, city, status
            FROM contacts
@@ -421,7 +430,9 @@ def contacts_search():
            LIMIT 25""",
         (f"%{q}%", f"%{q}%", f"%{q}%"),
     )
-    return jsonify(rows)
+    resp = jsonify(rows)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
 
 
 @app.route("/api/contacts/sample")
