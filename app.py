@@ -489,9 +489,11 @@ if __name__ == "__main__":
     import atexit
     atexit.register(shutdown)
 
-    # Start PropertyTourPics bridge (queue poller + contact syncer)
-    from sender.godaddy_bridge import start_bridge
-    start_bridge()
+    # Start PropertyTourPics bridge only in the child process (not the reloader)
+    import os
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
+        from sender.godaddy_bridge import start_bridge
+        start_bridge()
 
     print("\n  MultiText is running at http://localhost:8080")
     print("  Phone access: http://100.111.21.108:8080\n")
