@@ -6,6 +6,7 @@ contacts_cache table so the PropertyTourPics contact search works.
 """
 
 import json
+import ssl
 import time
 import threading
 import urllib.request
@@ -13,6 +14,15 @@ import urllib.error
 
 from sender.engine import send_imessage, normalize_phone
 from models.database import query
+
+# SSL context that works with GoDaddy's cert chain
+_ssl_ctx = ssl.create_default_context()
+try:
+    import certifi
+    _ssl_ctx.load_verify_locations(certifi.where())
+except ImportError:
+    # Fallback: don't verify (GoDaddy certs can be tricky)
+    _ssl_ctx = ssl._create_unverified_context()
 
 PTP_BASE = "https://peoplestar.com/PropertyTourPics/api"
 API_KEY = "ptp-mt-bridge-d4c3621a54464a20211be5bfec8d9ad9"
@@ -31,7 +41,7 @@ def _request(url, data=None):
     if data is not None:
         req.data = json.dumps(data).encode()
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=30, context=_ssl_ctx) as resp:
             return json.loads(resp.read().decode())
     except Exception as e:
         print(f"  [bridge] Request failed: {url} — {e}")
