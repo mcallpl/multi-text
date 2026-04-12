@@ -488,6 +488,11 @@ def send_now():
 if __name__ == "__main__":
     import atexit
     atexit.register(shutdown)
-    print("\n  MultiText is running at http://localhost:5050")
-    print("  Phone access: http://100.111.21.108:5050\n")
-    app.run(host="0.0.0.0", port=5050, debug=True, threaded=True)
+
+    # Start PropertyTourPics bridge (queue poller + contact syncer)
+    from sender.godaddy_bridge import start_bridge
+    start_bridge()
+
+    print("\n  MultiText is running at http://localhost:8080")
+    print("  Phone access: http://100.111.21.108:8080\n")
+    app.run(host="0.0.0.0", port=8080, debug=True, threaded=True)
