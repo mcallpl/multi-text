@@ -15,7 +15,8 @@ from models.database import execute, query, shutdown
 from sender.engine import (cancel_batch, get_queue_summary, get_sent_today_count,
                            get_todays_queue, is_within_send_hours, normalize_phone,
                            personalize, process_todays_batch, queue_send,
-                           send_imessage)
+                           send_imessage,
+                           send_group_imessage)
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
@@ -475,6 +476,50 @@ def send_now():
 
     if success:
         resp = jsonify({"status": "success", "message": "Message sent via iMessage"})
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp
+    else:
+        resp = jsonify({"status": "error", "message": f"Send failed: {err}"})
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp, 500
+
+
+# ── Send Group Message (for TourSet — 3-way: agent + Kim + Chip) ──
+
+@app.route("/api/send/group", methods=["POST", "OPTIONS"])
+def send_group():
+    """Send a group iMessage to multiple recipients. Used by TourSet."""
+    if request.method == "OPTIONS":
+        resp = Response("", status=204)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        return resp
+
+    data = request.get_json(force=True)
+    phones = data.get("phones", [])
+    message = data.get("message", "")
+
+    if not phones or not message:
+        resp = jsonify({"status": "error", "message": "phones (array) and message required"})
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp, 400
+
+    normalized = []
+    for p in phones:
+        n = normalize_phone(p)
+        if n:
+            normalized.append(n)
+
+    if len(normalized) < 2:
+        resp = jsonify({"status": "error", "message": "Need at least 2 valid phone numbers for group"})
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp, 400
+
+    success, err = send_group_imessage(normalized, message)
+
+    if success:
+        resp = jsonify({"status": "success", "message": f"Group message sent to {len(normalized)} recipients"})
         resp.headers["Access-Control-Allow-Origin"] = "*"
         return resp
     else:

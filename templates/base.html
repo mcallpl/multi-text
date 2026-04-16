@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MultiText{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="grain-overlay"></div>
+
+    <nav class="sidebar">
+        <div class="logo">
+            <div class="logo-icon">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                    <rect x="2" y="4" width="18" height="14" rx="3" stroke="var(--accent)" stroke-width="2"/>
+                    <rect x="8" y="10" width="18" height="14" rx="3" stroke="var(--accent)" stroke-width="2" fill="var(--bg-primary)"/>
+                    <circle cx="14" cy="17" r="1.5" fill="var(--accent)"/>
+                    <circle cx="17" cy="17" r="1.5" fill="var(--accent)"/>
+                    <circle cx="20" cy="17" r="1.5" fill="var(--accent)"/>
+                </svg>
+            </div>
+            <span class="logo-text">MultiText</span>
+        </div>
+
+        <div class="nav-links">
+            <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <rect x="2" y="2" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="11" y="2" width="7" height="4" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="2" y="11" width="7" height="4" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="11" y="8" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+                Dashboard
+            </a>
+            <a href="/templates" class="nav-link {% if '/templates' in request.path %}active{% endif %}">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M4 3h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M6 7h8M6 10h6M6 13h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                Templates
+            </a>
+            <a href="/send" class="nav-link {% if '/send' in request.path %}active{% endif %}">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M3 10l14-7-4 14-3-5.5L3 10z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                </svg>
+                Send
+            </a>
+            <a href="/queue" class="nav-link {% if '/queue' in request.path %}active{% endif %}">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <rect x="3" y="3" width="14" height="3" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="3" y="8.5" width="14" height="3" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                    <rect x="3" y="14" width="14" height="3" rx="1" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+                Queue
+            </a>
+            <a href="/history" class="nav-link {% if '/history' in request.path %}active{% endif %}">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M10 6v4.5l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                History
+            </a>
+        </div>
+
+        <div class="nav-footer">
+            <div class="status-dot {% if request.path == '/' %}{% if stats is defined and stats.within_hours %}online{% else %}offline{% endif %}{% endif %}"></div>
+            <span class="status-text">Send window {{ "open" if (stats is defined and stats.within_hours) else "closed" }}</span>
+        </div>
+    </nav>
+
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

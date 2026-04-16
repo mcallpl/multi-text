@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Templates — MultiText{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Templates</h1>
+    <p class="subtitle">Create and manage your message templates</p>
+</div>
+
+<!-- Available placeholders -->
+<div class="placeholder-bar">
+    <span class="placeholder-label">Available placeholders:</span>
+    {% for p in placeholders %}
+    <button class="placeholder-chip" onclick="insertPlaceholder('{{ '{' + p + '}' }}')" title="Click to copy">{{ '{' + p + '}' }}</button>
+    {% endfor %}
+</div>
+
+<!-- Create new template -->
+<div class="card create-card">
+    <h3>New Template</h3>
+    <form method="POST" action="/templates/create" class="template-form">
+        <div class="form-group">
+            <label for="new-name">Template Name</label>
+            <input type="text" id="new-name" name="name" placeholder="e.g., Birthday greeting" required>
+        </div>
+        <div class="form-group">
+            <label for="new-body">Message Body</label>
+            <textarea id="new-body" name="body" rows="4" placeholder="Hey {first_name}, just wanted to reach out..." required></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-ghost" onclick="previewNew()">Preview</button>
+            <button type="submit" class="btn btn-primary">Create Template</button>
+        </div>
+    </form>
+    <div id="new-preview" class="preview-bubble" style="display:none">
+        <div class="bubble-label">Preview</div>
+        <div class="bubble-text"></div>
+        <div class="bubble-contact"></div>
+    </div>
+</div>
+
+<!-- Existing templates -->
+{% for tpl in templates %}
+<div class="card template-card" style="--delay: {{ loop.index0 }}">
+    <form method="POST" action="/templates/{{ tpl.id }}/update" class="template-form">
+        <div class="template-header">
+            <input type="text" name="name" value="{{ tpl.name }}" class="template-name-input">
+            <span class="template-date">Updated {{ tpl.updated_at.strftime('%b %d, %Y') }}</span>
+        </div>
+        <div class="form-group">
+            <textarea name="body" rows="3" class="template-body-input">{{ tpl.body }}</textarea>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-ghost" onclick="previewTemplate({{ tpl.id }}, this)">Preview</button>
+            <button type="submit" class="btn btn-secondary">Save Changes</button>
+            <button type="button" class="btn btn-danger" onclick="deleteTemplate({{ tpl.id }})">Delete</button>
+        </div>
+    </form>
+    <div class="preview-bubble" id="preview-{{ tpl.id }}" style="display:none">
+        <div class="bubble-label">Preview</div>
+        <div class="bubble-text"></div>
+        <div class="bubble-contact"></div>
+    </div>
+</div>
+{% endfor %}
+
+{% if not templates %}
+<div class="empty-state">
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <path d="M10 8h28a3 3 0 013 3v26a3 3 0 01-3 3H10a3 3 0 01-3-3V11a3 3 0 013-3z" stroke="var(--text-muted)" stroke-width="2"/>
+        <path d="M14 18h20M14 24h14M14 30h8" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <p>No templates yet. Create one above to get started.</p>
+</div>
+{% endif %}
+
+<!-- Hidden delete form -->
+<form id="delete-form" method="POST" style="display:none"></form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function insertPlaceholder(text) {
+    const active = document.activeElement;
+    if (active && active.tagName === 'TEXTAREA') {
+        const start = active.selectionStart;
+        const end = active.selectionEnd;
+        active.value = active.value.substring(0, start) + text + active.value.substring(end);
+        active.selectionStart = active.selectionEnd = start + text.length;
+        active.focus();
+    } else {
+        navigator.clipboard.writeText(text);
+        const chip = event.target;
+        const orig = chip.textContent;
+        chip.textContent = 'Copied!';
+        chip.classList.add('copied');
+        setTimeout(() => { chip.textContent = orig; chip.classList.remove('copied'); }, 1000);
+    }
+}
+
+async function previewTemplate(id, btn) {
+    const el = document.getElementById('preview-' + id);
+    if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+    const resp = await fetch('/api/templates/' + id + '/preview');
+    const data = await resp.json();
+    el.querySelector('.bubble-text').textContent = data.preview;
+    el.querySelector('.bubble-contact').textContent = 'Previewing as: ' + data.contact;
+    el.style.display = 'block';
+}
+
+async function previewNew() {
+    const body = document.getElementById('new-body').value;
+    if (!body) return;
+    const resp = await fetch('/api/contacts/sample');
+    const contact = await resp.json();
+    let msg = body;
+    for (const [k, v] of Object.entries(contact)) {
+        msg = msg.replaceAll('{' + k + '}', v || '');
+    }
+    const el = document.getElementById('new-preview');
+    el.querySelector('.bubble-text').textContent = msg;
+    el.querySelector('.bubble-contact').textContent = 'Previewing as: ' + (contact.first_name || '') + ' ' + (contact.last_name || '');
+    el.style.display = 'block';
+}
+
+function deleteTemplate(id) {
+    if (!confirm('Delete this template? This cannot be undone.')) return;
+    const form = document.getElementById('delete-form');
+    form.action = '/templates/' + id + '/delete';
+    form.submit();
+}
+</script>
+{% endblock %}

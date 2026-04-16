@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Queue — MultiText{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Send Queue</h1>
+    <p class="subtitle">{{ sent_today }} of {{ daily_cap }} sent today — {{ todays_pending }} pending for today</p>
+</div>
+
+<!-- Today's action -->
+{% if todays_pending > 0 %}
+<div class="card">
+    <div class="queue-today-banner" style="margin-bottom: 1rem;">
+        <span class="pulse-dot"></span>
+        <strong>{{ todays_pending }}</strong> messages ready to send today
+    </div>
+    <div class="form-actions">
+        <button class="btn btn-secondary" onclick="runToday(true)">Dry Run Today's Batch</button>
+        <button class="btn btn-accent" onclick="runToday(false)">Send Today's Batch</button>
+    </div>
+</div>
+{% elif sent_today >= daily_cap %}
+<div class="send-window-banner closed" style="margin-bottom: 1.25rem;">
+    Daily cap reached ({{ sent_today }}/{{ daily_cap }}). Remaining messages will send tomorrow.
+</div>
+{% else %}
+<div class="card">
+    <div class="empty-state small">
+        <p>No messages queued for today. <a href="/send" style="color: var(--accent)">Queue a new send</a></p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Schedule overview -->
+{% if queue %}
+<div class="card">
+    <h3>Upcoming Schedule</h3>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Batch</th>
+                <th>Pending</th>
+                <th>Sent</th>
+                <th>Failed</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for q in queue %}
+            <tr>
+                <td class="cell-name">
+                    {% set d = q.scheduled_date %}
+                    {{ d.strftime('%a, %b %d') if d.strftime else d }}
+                    {% if d == today %}
+                    <span class="status-badge sent" style="margin-left: 0.5rem;">TODAY</span>
+                    {% endif %}
+                </td>
+                <td class="cell-mono">{{ q.batch_id[:8] }}</td>
+                <td><span class="badge">{{ q.pending|int }}</span></td>
+                <td>{{ q.sent|int }}</td>
+                <td>{{ q.failed|int }}</td>
+                <td>
+                    {% if q.pending|int > 0 %}
+                    <button class="btn btn-danger btn-sm" onclick="cancelBatch('{{ q.batch_id }}')">Cancel</button>
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Progress modal -->
+<div id="progress-overlay" class="progress-overlay" style="display:none">
+    <div class="progress-modal">
+        <div class="progress-header">
+            <h3 id="progress-title">Sending...</h3>
+            <div id="progress-counter" class="progress-counter">0 / 0</div>
+        </div>
+        <div class="progress-bar-track">
+            <div id="progress-bar" class="progress-bar-fill"></div>
+        </div>
+        <div id="progress-log" class="progress-log"></div>
+        <div id="progress-summary" class="progress-summary" style="display:none"></div>
+        <button id="progress-close" class="btn btn-primary" style="display:none" onclick="closeProgress()">Done</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function runToday(dryRun) {
+    if (!dryRun && !confirm("Send today's batch of messages? This will send real texts from your phone.")) return;
+
+    const overlay = document.getElementById('progress-overlay');
+    const log = document.getElementById('progress-log');
+    const bar = document.getElementById('progress-bar');
+    const counter = document.getElementById('progress-counter');
+    const title = document.getElementById('progress-title');
+    const summary = document.getElementById('progress-summary');
+    const closeBtn = document.getElementById('progress-close');
+
+    overlay.style.display = 'flex';
+    log.innerHTML = '';
+    bar.style.width = '0%';
+    summary.style.display = 'none';
+    closeBtn.style.display = 'none';
+    title.textContent = dryRun ? 'Dry Run...' : 'Sending...';
+
+    fetch('/api/send/run-today', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({dry_run: dryRun}),
+    }).then(resp => {
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        function read() {
+            reader.read().then(({done, value}) => {
+                if (done) return;
+                buffer += decoder.decode(value, {stream: true});
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    const event = JSON.parse(line.slice(6));
+
+                    if (event.type === 'start') {
+                        counter.textContent = `0 / ${event.total}`;
+                        if (event.already_sent > 0) {
+                            log.innerHTML += `<div class="log-entry warn"><span class="log-status">info</span><span class="log-name">${event.already_sent} already sent today (${event.daily_cap} daily cap)</span></div>`;
+                        }
+                    } else if (event.type === 'progress') {
+                        const pct = (event.index / event.total * 100).toFixed(0);
+                        bar.style.width = pct + '%';
+                        counter.textContent = `${event.index} / ${event.total}`;
+
+                        const statusClass = event.status === 'sent' || event.status === 'dry_run' ? 'success' : event.status === 'failed' ? 'error' : 'warn';
+                        log.innerHTML += `<div class="log-entry ${statusClass}">
+                            <span class="log-status">${event.status}</span>
+                            <span class="log-name">${event.name}</span>
+                            <span class="log-phone">${event.phone}</span>
+                        </div>`;
+                        log.scrollTop = log.scrollHeight;
+                    } else if (event.type === 'done') {
+                        bar.style.width = '100%';
+                        title.textContent = dryRun ? 'Dry Run Complete' : 'Send Complete';
+                        let html = '<div class="summary-stats">';
+                        if (event.sent > 0) html += `<div class="summary-item success">${event.sent} sent</div>`;
+                        if (event.dry_run > 0) html += `<div class="summary-item success">${event.dry_run} previewed</div>`;
+                        if (event.failed > 0) html += `<div class="summary-item error">${event.failed} failed</div>`;
+                        if (event.skipped > 0) html += `<div class="summary-item warn">${event.skipped} skipped</div>`;
+                        if (event.message) html += `<div class="summary-item warn">${event.message}</div>`;
+                        html += '</div>';
+                        summary.innerHTML = html;
+                        summary.style.display = 'block';
+                        closeBtn.style.display = 'block';
+                    }
+                }
+                read();
+            });
+        }
+        read();
+    });
+}
+
+async function cancelBatch(batchId) {
+    if (!confirm('Cancel all pending messages in this batch?')) return;
+    const resp = await fetch('/api/send/cancel/' + batchId, {method: 'POST'});
+    const result = await resp.json();
+    alert(`Cancelled ${result.cancelled} messages.`);
+    location.reload();
+}
+
+function closeProgress() {
+    document.getElementById('progress-overlay').style.display = 'none';
+    location.reload();
+}
+</script>
+{% endblock %}

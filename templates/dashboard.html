@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — MultiText{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard</h1>
+    <p class="subtitle">Your outreach at a glance</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card" style="--delay: 0">
+        <div class="stat-label">Active Contacts</div>
+        <div class="stat-value">{{ stats.total_contacts }}</div>
+    </div>
+    <div class="stat-card" style="--delay: 1">
+        <div class="stat-label">Templates</div>
+        <div class="stat-value">{{ stats.total_templates }}</div>
+    </div>
+    <div class="stat-card accent" style="--delay: 2">
+        <div class="stat-label">Sent Today</div>
+        <div class="stat-value">{{ stats.sent_today }} <span class="stat-cap">/ {{ stats.daily_cap }}</span></div>
+    </div>
+    <div class="stat-card" style="--delay: 3">
+        <div class="stat-label">This Week</div>
+        <div class="stat-value">{{ stats.sent_week }}</div>
+    </div>
+    <div class="stat-card" style="--delay: 4">
+        <div class="stat-label">This Month</div>
+        <div class="stat-value">{{ stats.sent_month }}</div>
+    </div>
+    <div class="stat-card" style="--delay: 5">
+        <div class="stat-label">Last Run</div>
+        <div class="stat-value stat-value-sm">{{ stats.last_run }}</div>
+    </div>
+</div>
+
+<!-- Queue status -->
+{% if stats.queue_total > 0 or stats.todays_pending > 0 %}
+<div class="card queue-status-card">
+    <h3>Send Queue</h3>
+    {% if stats.todays_pending > 0 %}
+    <div class="queue-today-banner">
+        <span class="pulse-dot"></span>
+        <strong>{{ stats.todays_pending }}</strong> messages ready to send today
+        <a href="/queue" class="btn btn-primary btn-sm" style="margin-left: auto;">Go to Queue</a>
+    </div>
+    {% endif %}
+    {% if stats.queue_total > 0 %}
+    <p class="queue-summary-text">{{ stats.queue_total }} messages queued across {{ stats.queue_days }} day{{ 's' if stats.queue_days != 1 }}</p>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="quick-actions">
+    <a href="/send" class="action-btn primary">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <path d="M3 11l16-8-4.5 16-3.5-6L3 11z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        </svg>
+        New Send
+    </a>
+    <a href="/queue" class="action-btn">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <rect x="3" y="4" width="16" height="3" rx="1" stroke="currentColor" stroke-width="1.8"/>
+            <rect x="3" y="9.5" width="16" height="3" rx="1" stroke="currentColor" stroke-width="1.8"/>
+            <rect x="3" y="15" width="16" height="3" rx="1" stroke="currentColor" stroke-width="1.8"/>
+        </svg>
+        Queue
+    </a>
+    <a href="/templates" class="action-btn">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <path d="M5 3h12a1.5 1.5 0 011.5 1.5v13a1.5 1.5 0 01-1.5 1.5H5a1.5 1.5 0 01-1.5-1.5v-13A1.5 1.5 0 015 3z" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M7 8h8M7 11.5h6M7 15h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        Templates
+    </a>
+    <a href="/history" class="action-btn">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M11 6.5v5l3.5 2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        History
+    </a>
+</div>
+
+<div class="send-window-banner {% if stats.within_hours %}open{% else %}closed{% endif %}">
+    {% if stats.within_hours %}
+        <span class="pulse-dot"></span>
+        Send window is open — messages can be sent now
+    {% else %}
+        Send window is closed — sends allowed {{ send_hours[0] }}AM – {{ send_hours[1] % 12 }}PM
+    {% endif %}
+</div>
+{% endblock %}

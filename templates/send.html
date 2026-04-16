@@ -1,0 +1,787 @@
+{% extends "base.html" %}
+{% block title %}Send — MultiText{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Send Messages</h1>
+    <p class="subtitle">Pick specific contacts or filter your audience ({{ daily_cap }}/day max)</p>
+</div>
+
+<!-- Mode tabs -->
+<div class="send-mode-tabs">
+    <button class="send-mode-tab active" data-mode="picker" onclick="switchSendMode('picker')">Pick Contacts</button>
+    <button class="send-mode-tab" data-mode="filter" onclick="switchSendMode('filter')">Filter Audience</button>
+</div>
+
+<!-- ═══ CONTACT PICKER MODE ═══ -->
+<div id="mode-picker" class="send-layout send-layout-3col">
+    <div class="card filter-card">
+        <h3>Pick Contacts</h3>
+
+        <div class="form-group">
+            <label for="contact-search">Search Contacts</label>
+            <div class="contact-search-wrap">
+                <input type="text" id="contact-search" placeholder="Type a name..." autocomplete="off">
+                <div id="search-results" class="search-results"></div>
+            </div>
+        </div>
+
+        <div id="selected-chips" class="selected-chips"></div>
+    </div>
+
+    <!-- Message composer -->
+    <div class="card composer-card">
+        <h3>Your Message</h3>
+
+        <div class="form-group">
+            <label for="template-select-picker">Load from template <span style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+            <select id="template-select-picker" onchange="loadTemplate('picker')">
+                <option value="">Write a custom message...</option>
+                {% for t in templates %}
+                <option value="{{ t.id }}">{{ t.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="placeholder-bar compact">
+            <span class="placeholder-label">Insert:</span>
+            {% for p in placeholders %}
+            <button class="placeholder-chip" onclick="insertPlaceholder('{{ '{' + p + '}' }}', 'picker-message')" title="Insert {{ '{' + p + '}' }}">{{ '{' + p + '}' }}</button>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <textarea id="picker-message" rows="5" placeholder="Hey {first_name}, just wanted to reach out..."></textarea>
+        </div>
+
+        <div id="picker-preview" class="preview-bubble" style="display:none">
+            <div class="bubble-label">Preview</div>
+            <div class="bubble-text"></div>
+            <div class="bubble-contact"></div>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-ghost" onclick="previewMessage('picker')">Preview</button>
+            <label class="save-template-check">
+                <input type="checkbox" id="picker-save-tpl"> Save as template
+            </label>
+        </div>
+        <div id="picker-tpl-name-wrap" class="form-group" style="display:none;margin-top:0.5rem">
+            <input type="text" id="picker-tpl-name" placeholder="Template name...">
+        </div>
+    </div>
+
+    <div class="card recipients-card">
+        <div class="recipients-header">
+            <h3>Selected Contacts</h3>
+            <span id="picker-count" class="badge">0</span>
+        </div>
+
+        <div id="picker-list" class="recipients-list">
+            <div class="empty-state small">
+                <p>Search and select contacts above</p>
+            </div>
+        </div>
+
+        <div id="picker-actions" class="send-actions" style="display:none">
+            <button class="btn btn-accent btn-full" onclick="sendPickerNow()">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path d="M3 9l12-6-4 12-3-5L3 9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                </svg>
+                Send Now
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ FILTER MODE ═══ -->
+<div id="mode-filter" class="send-layout" style="display:none">
+    <div class="card filter-card">
+        <h3>Build Your Audience</h3>
+
+        <div class="form-group">
+            <label for="template-select">Template / Message</label>
+            <select id="template-select" onchange="loadTemplate('filter')">
+                <option value="">Write a custom message...</option>
+                {% for t in templates %}
+                <option value="{{ t.id }}">{{ t.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="placeholder-bar compact">
+            <span class="placeholder-label">Insert:</span>
+            {% for p in placeholders %}
+            <button class="placeholder-chip" onclick="insertPlaceholder('{{ '{' + p + '}' }}', 'filter-message')" title="Insert {{ '{' + p + '}' }}">{{ '{' + p + '}' }}</button>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <textarea id="filter-message" rows="4" placeholder="Hey {first_name}, just wanted to reach out..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="status-select">Status</label>
+            <select id="status-select">
+                <option value="">All statuses</option>
+                {% for s in statuses %}
+                <option value="{{ s }}" {% if s == 'active' %}selected{% endif %}>{{ s|capitalize }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="city-select">City</label>
+            <select id="city-select">
+                <option value="">All cities</option>
+                {% for c in cities %}
+                <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="source-select">Source</label>
+            <select id="source-select">
+                <option value="">All sources</option>
+                {% for s in sources %}
+                <option value="{{ s }}">{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <button class="btn btn-primary btn-full" onclick="previewAudience()">Preview Recipients</button>
+    </div>
+
+    <div class="card recipients-card">
+        <div class="recipients-header">
+            <h3>Recipients</h3>
+            <span id="recipient-count" class="badge">0</span>
+        </div>
+
+        <div id="filter-select-controls" class="filter-select-controls" style="display:none">
+            <button class="btn btn-ghost btn-sm" onclick="filterSelectAll(true)">Select All</button>
+            <button class="btn btn-ghost btn-sm" onclick="filterSelectAll(false)">Deselect All</button>
+            <span id="filter-checked-count" class="filter-checked-label"></span>
+        </div>
+
+        <div id="schedule-info" class="schedule-info" style="display:none"></div>
+
+        <div id="recipients-list" class="recipients-list">
+            <div class="empty-state small">
+                <p>Click "Preview Recipients" to see who will receive messages</p>
+            </div>
+        </div>
+
+        <div id="send-actions" class="send-actions" style="display:none">
+            <button class="btn btn-accent btn-full" onclick="queueSend()">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path d="M3 9l12-6-4 12-3-5L3 9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                </svg>
+                Queue for Sending
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- After-hours choice modal -->
+<div id="hours-overlay" class="progress-overlay" style="display:none">
+    <div class="progress-modal hours-modal">
+        <h3>Outside Send Window</h3>
+        <p class="hours-desc">
+            It's currently outside your send window
+            (<span id="hours-window"></span>).
+            What would you like to do?
+        </p>
+        <div class="hours-choices">
+            <button class="btn btn-accent btn-full hours-choice" onclick="hoursChoice('now')">
+                Send Right Now
+                <span class="hours-choice-sub">Override the window and send immediately</span>
+            </button>
+            <button class="btn btn-primary btn-full hours-choice" onclick="hoursChoice('tomorrow')">
+                Schedule for Tomorrow
+                <span class="hours-choice-sub">Queue and send during tomorrow's window</span>
+            </button>
+            <button class="btn btn-full hours-choice" onclick="hoursChoice('cancel')">
+                Cancel
+                <span class="hours-choice-sub">Go back and don't send</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Progress modal -->
+<div id="progress-overlay" class="progress-overlay" style="display:none">
+    <div class="progress-modal">
+        <div class="progress-header">
+            <h3 id="progress-title">Sending...</h3>
+            <div id="progress-counter" class="progress-counter">0 / 0</div>
+        </div>
+        <div class="progress-bar-track">
+            <div id="progress-bar" class="progress-bar-fill"></div>
+        </div>
+        <div id="progress-log" class="progress-log"></div>
+        <div id="progress-summary" class="progress-summary" style="display:none"></div>
+        <button id="progress-close" class="btn btn-primary" style="display:none" onclick="document.getElementById('progress-overlay').style.display='none'">Done</button>
+    </div>
+</div>
+
+<!-- Queue confirmation modal -->
+<div id="queue-overlay" class="progress-overlay" style="display:none">
+    <div class="progress-modal">
+        <div id="queue-result"></div>
+        <button class="btn btn-primary" onclick="document.getElementById('queue-overlay').style.display='none'">OK</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Template data (loaded from server) ──
+const TEMPLATES = {
+    {% for t in templates %}
+    {{ t.id }}: {{ t.body|tojson }},
+    {% endfor %}
+};
+
+// ── Mode switching ──
+function switchSendMode(mode) {
+    document.querySelectorAll('.send-mode-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.send-mode-tab[data-mode="${mode}"]`).classList.add('active');
+    document.getElementById('mode-picker').style.display = mode === 'picker' ? '' : 'none';
+    document.getElementById('mode-filter').style.display = mode === 'filter' ? '' : 'none';
+}
+
+// ── Template loading & inline editing ──
+function loadTemplate(mode) {
+    const select = document.getElementById(mode === 'picker' ? 'template-select-picker' : 'template-select');
+    const textarea = document.getElementById(mode + '-message');
+    const tid = select.value;
+    if (tid && TEMPLATES[tid]) {
+        textarea.value = TEMPLATES[tid];
+    } else {
+        textarea.value = '';
+    }
+    textarea.focus();
+}
+
+// ── Placeholder insertion ──
+function insertPlaceholder(text, textareaId) {
+    const ta = document.getElementById(textareaId);
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    ta.value = ta.value.substring(0, start) + text + ta.value.substring(end);
+    ta.selectionStart = ta.selectionEnd = start + text.length;
+    ta.focus();
+}
+
+// ── Live preview ──
+async function previewMessage(mode) {
+    const textarea = document.getElementById(mode + '-message');
+    const body = textarea.value.trim();
+    if (!body) { alert('Write a message first.'); return; }
+
+    const resp = await fetch('/api/contacts/sample');
+    const contact = await resp.json();
+    let msg = body;
+    for (const [k, v] of Object.entries(contact)) {
+        msg = msg.replaceAll('{' + k + '}', v || '');
+    }
+    const el = document.getElementById(mode + '-preview');
+    el.querySelector('.bubble-text').textContent = msg;
+    el.querySelector('.bubble-contact').textContent = 'Previewing as: ' + (contact.first_name || '') + ' ' + (contact.last_name || '');
+    el.style.display = 'block';
+}
+
+// ── Save-as-template checkbox toggle ──
+document.getElementById('picker-save-tpl').addEventListener('change', function() {
+    document.getElementById('picker-tpl-name-wrap').style.display = this.checked ? 'block' : 'none';
+});
+
+// ── Build the queue payload for current mode ──
+function getMessagePayload(mode) {
+    const select = document.getElementById(mode === 'picker' ? 'template-select-picker' : 'template-select');
+    const textarea = document.getElementById(mode + '-message');
+    const tid = select.value;
+    const body = textarea.value.trim();
+
+    if (!body) return null; // no message
+
+    if (tid) {
+        // Using a template — check if body was edited
+        const original = TEMPLATES[tid] || '';
+        if (body !== original) {
+            return { template_id: tid, edited_body: body };
+        }
+        return { template_id: tid };
+    } else {
+        // Custom message — no template
+        const payload = { message_body: body };
+        if (mode === 'picker' && document.getElementById('picker-save-tpl').checked) {
+            const name = document.getElementById('picker-tpl-name').value.trim();
+            if (name) payload.save_as_template = name;
+        }
+        return payload;
+    }
+}
+
+
+// ── Contact Picker ──
+const selectedContacts = new Map();
+let searchTimeout = null;
+
+const searchInput = document.getElementById('contact-search');
+const searchResults = document.getElementById('search-results');
+
+searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    const q = searchInput.value.trim();
+    if (q.length < 2) {
+        searchResults.innerHTML = '';
+        searchResults.style.display = 'none';
+        return;
+    }
+    searchTimeout = setTimeout(() => searchContacts(q), 200);
+});
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.contact-search-wrap')) {
+        searchResults.style.display = 'none';
+    }
+});
+
+async function searchContacts(q) {
+    const resp = await fetch(`/api/contacts/search?q=${encodeURIComponent(q)}`);
+    const contacts = await resp.json();
+
+    if (contacts.length === 0) {
+        searchResults.innerHTML = '<div class="search-empty">No contacts found</div>';
+        searchResults.style.display = 'block';
+        return;
+    }
+
+    searchResults.innerHTML = contacts.map(c => {
+        const checked = selectedContacts.has(c.id);
+        const name = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+        return `
+            <label class="search-result-row ${checked ? 'selected' : ''}" data-id="${c.id}">
+                <input type="checkbox" ${checked ? 'checked' : ''}
+                       onchange="toggleContact(${c.id}, ${JSON.stringify(c).replace(/"/g, '&quot;')}, this.checked)">
+                <span class="sr-name">${name}</span>
+                <span class="sr-phone">${c.phone || ''}</span>
+                <span class="sr-city">${c.city || ''}</span>
+            </label>`;
+    }).join('');
+    searchResults.style.display = 'block';
+}
+
+function toggleContact(id, contact, checked) {
+    if (checked) {
+        selectedContacts.set(id, contact);
+    } else {
+        selectedContacts.delete(id);
+    }
+    const row = searchResults.querySelector(`[data-id="${id}"]`);
+    if (row) row.classList.toggle('selected', checked);
+    renderSelectedContacts();
+
+    // Clear search and refocus so you can immediately type the next name
+    searchInput.value = '';
+    searchResults.style.display = 'none';
+    searchInput.focus();
+}
+
+function removeContact(id) {
+    selectedContacts.delete(id);
+    const row = searchResults.querySelector(`[data-id="${id}"]`);
+    if (row) {
+        row.classList.remove('selected');
+        row.querySelector('input').checked = false;
+    }
+    renderSelectedContacts();
+}
+
+function renderSelectedContacts() {
+    const count = selectedContacts.size;
+    document.getElementById('picker-count').textContent = count;
+
+    const chipsEl = document.getElementById('selected-chips');
+    if (count === 0) {
+        chipsEl.innerHTML = '';
+    } else {
+        chipsEl.innerHTML = Array.from(selectedContacts.values()).map(c => {
+            const name = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+            return `<span class="contact-chip">
+                ${name}
+                <button onclick="removeContact(${c.id})" class="chip-remove">&times;</button>
+            </span>`;
+        }).join('');
+    }
+
+    const listEl = document.getElementById('picker-list');
+    if (count === 0) {
+        listEl.innerHTML = '<div class="empty-state small"><p>Search and select contacts above</p></div>';
+        document.getElementById('picker-actions').style.display = 'none';
+    } else {
+        listEl.innerHTML = Array.from(selectedContacts.values()).map(c => `
+            <div class="recipient-row">
+                <div class="recipient-name">${c.first_name || ''} ${c.last_name || ''}</div>
+                <div class="recipient-detail">${c.phone || 'No phone'}</div>
+                <div class="recipient-detail">${c.city || ''}</div>
+                <button class="btn btn-ghost btn-sm" onclick="removeContact(${c.id})" title="Remove">&times;</button>
+            </div>
+        `).join('');
+        document.getElementById('picker-actions').style.display = 'flex';
+    }
+}
+
+// ── Picker Send ──
+let pendingSend = null;
+
+async function sendPickerNow() {
+    const msgPayload = getMessagePayload('picker');
+    if (!msgPayload) { alert('Write a message first.'); return; }
+    if (selectedContacts.size === 0) { alert('Select at least one contact.'); return; }
+
+    const ids = Array.from(selectedContacts.keys());
+    const names = Array.from(selectedContacts.values()).map(c => `${c.first_name || ''} ${c.last_name || ''}`.trim());
+
+    const hoursResp = await fetch('/api/send/hours');
+    const hours = await hoursResp.json();
+
+    if (!hours.within_hours) {
+        pendingSend = { msgPayload, ids, names, mode: 'picker' };
+        const startLabel = hours.start > 12 ? `${hours.start - 12}PM` : `${hours.start}AM`;
+        const endLabel = hours.end > 12 ? `${hours.end - 12}PM` : `${hours.end}AM`;
+        document.getElementById('hours-window').textContent = `${startLabel} – ${endLabel}`;
+        document.getElementById('hours-overlay').style.display = 'flex';
+        return;
+    }
+
+    if (!confirm(`Send to ${ids.length} contact${ids.length > 1 ? 's' : ''} right now?\n\n${names.join(', ')}`)) return;
+    await doQueueAndSend(msgPayload, ids, false);
+}
+
+function hoursChoice(choice) {
+    document.getElementById('hours-overlay').style.display = 'none';
+    if (choice === 'cancel' || !pendingSend) return;
+
+    const { msgPayload, ids } = pendingSend;
+
+    if (choice === 'now') {
+        doQueueAndSend(msgPayload, ids, true);
+    } else if (choice === 'tomorrow') {
+        doQueueForTomorrow(msgPayload, ids);
+    }
+
+    pendingSend = null;
+}
+
+async function doQueueForTomorrow(msgPayload, ids) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateStr = tomorrow.toISOString().split('T')[0];
+
+    const qResp = await fetch('/api/send/queue', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ ...msgPayload, contact_ids: ids, schedule_date: dateStr }),
+    });
+    const qResult = await qResp.json();
+    if (qResult.error) { alert(qResult.error); return; }
+
+    showQueueResult(qResult);
+    clearPickerState();
+}
+
+async function doQueueAndSend(msgPayload, ids, force) {
+    const qResp = await fetch('/api/send/queue', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ ...msgPayload, contact_ids: ids }),
+    });
+    const qResult = await qResp.json();
+    if (qResult.error) { alert(qResult.error); return; }
+
+    showProgressOverlay();
+
+    try {
+        const resp = await fetch('/api/send/run-today', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ dry_run: false, force: force }),
+        });
+        await readSSEStream(resp);
+    } catch (err) {
+        finishProgress('Connection Lost', `<div class="summary-item error">Connection to server was lost: ${err.message}</div>`);
+    }
+
+    clearPickerState();
+}
+
+// ── Filter mode ──
+const filterContacts = new Map();   // id -> contact object
+const filterChecked = new Set();    // set of checked ids
+
+async function previewAudience() {
+    const msgPayload = getMessagePayload('filter');
+    const data = {
+        template_id: msgPayload?.template_id || '',
+        status: document.getElementById('status-select').value,
+        city: document.getElementById('city-select').value,
+        source: document.getElementById('source-select').value,
+    };
+
+    const resp = await fetch('/api/send/preview', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    });
+    const result = await resp.json();
+
+    const list = document.getElementById('recipients-list');
+    const info = document.getElementById('schedule-info');
+    const controls = document.getElementById('filter-select-controls');
+
+    // Reset state
+    filterContacts.clear();
+    filterChecked.clear();
+
+    if (result.count === 0) {
+        document.getElementById('recipient-count').textContent = 0;
+        list.innerHTML = '<div class="empty-state small"><p>No contacts match these filters</p></div>';
+        info.style.display = 'none';
+        controls.style.display = 'none';
+        document.getElementById('send-actions').style.display = 'none';
+        return;
+    }
+
+    // Store all contacts and check them all by default
+    result.contacts.forEach(c => {
+        filterContacts.set(c.id, c);
+        filterChecked.add(c.id);
+    });
+
+    renderFilterRecipients(result.daily_cap);
+    document.getElementById('send-actions').style.display = 'flex';
+}
+
+function renderFilterRecipients(dailyCap) {
+    const list = document.getElementById('recipients-list');
+    const info = document.getElementById('schedule-info');
+    const controls = document.getElementById('filter-select-controls');
+    const checkedCount = filterChecked.size;
+    const totalCount = filterContacts.size;
+
+    document.getElementById('recipient-count').textContent = checkedCount;
+    controls.style.display = 'flex';
+    document.getElementById('filter-checked-count').textContent =
+        `${checkedCount} of ${totalCount} selected`;
+
+    const cap = dailyCap || {{ daily_cap }};
+    if (checkedCount > cap) {
+        const days = Math.ceil(checkedCount / cap);
+        info.innerHTML = `
+            <div class="schedule-banner">
+                <strong>${checkedCount} people</strong> will be messaged over
+                <strong>${days} days</strong>
+                (${cap}/day to protect your account)
+            </div>`;
+        info.style.display = 'block';
+    } else if (checkedCount > 0) {
+        info.innerHTML = `
+            <div class="schedule-banner">
+                <strong>${checkedCount} people</strong> will be messaged today
+            </div>`;
+        info.style.display = 'block';
+    } else {
+        info.style.display = 'none';
+    }
+
+    list.innerHTML = Array.from(filterContacts.values()).map(c => {
+        const checked = filterChecked.has(c.id);
+        const name = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+        return `
+            <label class="recipient-row recipient-row-check ${checked ? '' : 'unchecked'}" data-fid="${c.id}">
+                <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleFilterContact(${c.id}, this.checked)">
+                <div class="recipient-name">${name}</div>
+                <div class="recipient-detail">${c.phone || 'No phone'}</div>
+                <div class="recipient-detail">${c.city || ''}</div>
+            </label>`;
+    }).join('');
+
+    document.getElementById('send-actions').style.display = checkedCount > 0 ? 'flex' : 'none';
+}
+
+function toggleFilterContact(id, checked) {
+    if (checked) {
+        filterChecked.add(id);
+    } else {
+        filterChecked.delete(id);
+    }
+    const row = document.querySelector(`[data-fid="${id}"]`);
+    if (row) row.classList.toggle('unchecked', !checked);
+
+    // Update counts without re-rendering the whole list
+    const checkedCount = filterChecked.size;
+    document.getElementById('recipient-count').textContent = checkedCount;
+    document.getElementById('filter-checked-count').textContent =
+        `${checkedCount} of ${filterContacts.size} selected`;
+    document.getElementById('send-actions').style.display = checkedCount > 0 ? 'flex' : 'none';
+
+    const cap = {{ daily_cap }};
+    const info = document.getElementById('schedule-info');
+    if (checkedCount > cap) {
+        const days = Math.ceil(checkedCount / cap);
+        info.innerHTML = `<div class="schedule-banner"><strong>${checkedCount} people</strong> over <strong>${days} days</strong> (${cap}/day)</div>`;
+        info.style.display = 'block';
+    } else if (checkedCount > 0) {
+        info.innerHTML = `<div class="schedule-banner"><strong>${checkedCount} people</strong> will be messaged today</div>`;
+        info.style.display = 'block';
+    } else {
+        info.style.display = 'none';
+    }
+}
+
+function filterSelectAll(selectAll) {
+    filterChecked.clear();
+    if (selectAll) {
+        filterContacts.forEach((c, id) => filterChecked.add(id));
+    }
+    renderFilterRecipients();
+}
+
+async function queueSend() {
+    const msgPayload = getMessagePayload('filter');
+    if (!msgPayload) { alert('Write a message first.'); return; }
+    if (filterChecked.size === 0) { alert('Select at least one contact.'); return; }
+
+    const checkedIds = Array.from(filterChecked);
+    if (!confirm(`Queue ${checkedIds.length} messages for sending?`)) return;
+
+    const data = {
+        ...msgPayload,
+        contact_ids: checkedIds,
+    };
+
+    const resp = await fetch('/api/send/queue', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    });
+    const result = await resp.json();
+
+    if (result.error) { alert(result.error); return; }
+    showQueueResult(result);
+}
+
+// ── Shared helpers ──
+function showProgressOverlay() {
+    document.getElementById('progress-overlay').style.display = 'flex';
+    document.getElementById('progress-log').innerHTML = '';
+    document.getElementById('progress-bar').style.width = '0%';
+    document.getElementById('progress-counter').textContent = '0 / 0';
+    document.getElementById('progress-title').textContent = 'Sending...';
+    document.getElementById('progress-summary').style.display = 'none';
+    document.getElementById('progress-close').style.display = 'none';
+}
+
+function finishProgress(titleText, summaryHtml) {
+    document.getElementById('progress-title').textContent = titleText;
+    document.getElementById('progress-bar').style.width = '100%';
+    const summary = document.getElementById('progress-summary');
+    summary.innerHTML = '<div class="summary-stats">' + summaryHtml + '</div>';
+    summary.style.display = 'block';
+    document.getElementById('progress-close').style.display = 'block';
+}
+
+function readSSEStream(resp) {
+    return new Promise((resolve, reject) => {
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        const log = document.getElementById('progress-log');
+        const bar = document.getElementById('progress-bar');
+        const counter = document.getElementById('progress-counter');
+        let buffer = '';
+
+        function read() {
+            reader.read().then(({done, value}) => {
+                if (done) {
+                    document.getElementById('progress-close').style.display = 'block';
+                    resolve();
+                    return;
+                }
+                buffer += decoder.decode(value, {stream: true});
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue;
+                    const event = JSON.parse(line.slice(6));
+
+                    if (event.type === 'start') {
+                        counter.textContent = `0 / ${event.total}`;
+                    } else if (event.type === 'progress') {
+                        const pct = (event.index / event.total * 100).toFixed(0);
+                        bar.style.width = pct + '%';
+                        counter.textContent = `${event.index} / ${event.total}`;
+
+                        const statusClass = event.status === 'sent' || event.status === 'dry_run' ? 'success' : event.status === 'failed' ? 'error' : 'warn';
+                        log.innerHTML += `<div class="log-entry ${statusClass}">
+                            <span class="log-status">${event.status}</span>
+                            <span class="log-name">${event.name}</span>
+                            <span class="log-phone">${event.phone}</span>
+                        </div>`;
+                        log.scrollTop = log.scrollHeight;
+                    } else if (event.type === 'done') {
+                        let html = '';
+                        if (event.sent > 0) html += `<div class="summary-item success">${event.sent} sent</div>`;
+                        if (event.failed > 0) html += `<div class="summary-item error">${event.failed} failed</div>`;
+                        if (event.skipped > 0) html += `<div class="summary-item warn">${event.skipped} skipped</div>`;
+                        if (event.message) html += `<div class="summary-item warn">${event.message}</div>`;
+                        finishProgress('Send Complete', html);
+                        resolve();
+                        return;
+                    }
+                }
+                read();
+            }).catch(err => {
+                finishProgress('Connection Lost', `<div class="summary-item error">${err.message}</div>`);
+                reject(err);
+            });
+        }
+        read();
+    });
+}
+
+function clearPickerState() {
+    selectedContacts.clear();
+    renderSelectedContacts();
+    searchInput.value = '';
+    searchResults.style.display = 'none';
+}
+
+function showQueueResult(result) {
+    const overlay = document.getElementById('queue-overlay');
+    const resultDiv = document.getElementById('queue-result');
+
+    let scheduleHtml = result.schedule.map(s => {
+        const d = new Date(s.date + 'T12:00:00');
+        const label = d.toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'});
+        return `<div class="schedule-row"><span>${label}</span><span class="badge">${s.count} messages</span></div>`;
+    }).join('');
+
+    resultDiv.innerHTML = `
+        <h3>Queued Successfully</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+            <strong>${result.total}</strong> messages queued across <strong>${result.days}</strong> day${result.days > 1 ? 's' : ''}
+        </p>
+        <div class="schedule-breakdown">${scheduleHtml}</div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 1rem;">
+            Batch ID: ${result.batch_id} — Go to <a href="/queue" style="color: var(--accent)">Queue</a> to run today's batch.
+        </p>
+    `;
+    overlay.style.display = 'flex';
+}
+</script>
+{% endblock %}
