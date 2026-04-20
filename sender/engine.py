@@ -89,6 +89,33 @@ def send_imessage(phone: str, message: str) -> tuple[bool, str]:
         return False, str(e)
 
 
+def send_sms(phone: str, message: str) -> tuple[bool, str]:
+    """Send via SMS relay (iPhone Text Message Forwarding) for non-iMessage numbers.
+
+    Only call this when send_imessage() fails. Never modifies the iMessage path.
+    """
+    escaped = message.replace("\\", "\\\\").replace('"', '\\"')
+    applescript = f'''
+    tell application "Messages"
+        set targetService to 1st account whose service type = SMS
+        set targetBuddy to participant "{phone}" of targetService
+        send "{escaped}" to targetBuddy
+    end tell
+    '''
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", applescript],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode == 0:
+            return True, ""
+        return False, result.stderr.strip()
+    except subprocess.TimeoutExpired:
+        return False, "AppleScript timed out"
+    except Exception as e:
+        return False, str(e)
+
+
 def personalize(template: str, contact: dict) -> str:
     """Replace {placeholders} with contact data."""
     msg = template

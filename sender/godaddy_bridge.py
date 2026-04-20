@@ -12,7 +12,7 @@ import threading
 import urllib.request
 import urllib.error
 
-from sender.engine import send_imessage, normalize_phone
+from sender.engine import send_imessage, send_sms, normalize_phone
 from models.database import query
 
 # SSL context that works with GoDaddy's cert chain
@@ -73,6 +73,12 @@ def poll_text_queue():
 
         print(f"  [bridge] #{item_id} — sending to {phone}...")
         success, err = send_imessage(phone, message)
+
+        if not success:
+            print(f"  [bridge] #{item_id} — iMessage failed, trying SMS relay...")
+            success, err = send_sms(phone, message)
+            if success:
+                print(f"  [bridge] #{item_id} — sent via SMS relay!")
 
         if success:
             _request(f"{PTP_BASE}/poll-queue.php?action=update",
